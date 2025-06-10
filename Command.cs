@@ -32,6 +32,9 @@ namespace sciana2
         // Krok przesunięcia [m]
         private const double SHIFT_STEP = 0.5;
 
+        // Generator liczb losowych wykorzystywany w klasie
+        private static readonly Random _rnd = new Random();
+
         // Lista przechowująca linie dróg
         private List<Line> roadLines = new List<Line>();
 
@@ -560,8 +563,7 @@ namespace sciana2
             Solid parcelSolid = CreateSolidFromCurveLoop(parcelLoop, BUILDING_HEIGHT);
 
             // Definiowanie wymiarów budynku (można to uczynić bardziej zaawansowanym)
-            Random rnd = new Random();
-            double buildingArea = rnd.Next(807, 1615); // [m²] - zakres można dostosować
+            double buildingArea = _rnd.Next(807, 1615); // [m²] - zakres można dostosować
             double buildingWidth = Math.Sqrt(buildingArea);
             double buildingHeight = BUILDING_HEIGHT;
 
