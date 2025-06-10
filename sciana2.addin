@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+	<AddIn Type="Command">
+		<!-- Nazwa wyświetlana w interfejsie Revit (np. w menu lub wstążce) -->
+		<Name>sciana2 - Command</Name>
+
+		<!-- Krótki tekst (np. tooltip) -->
+		<Text>Command sciana2</Text>
+
+		<!-- Opis działania pluginu -->
+		<Description>Plugin sciana2: tworzenie drogi (strop 5m) i budynków stycznych</Description>
+
+		<!-- Ścieżka do pliku DLL -->
+		<Assembly>sciana2.dll</Assembly>
+
+		<!-- Pełna nazwa klasy implementującej IExternalCommand (namespace.klasa) -->
+		<FullClassName>sciana2.Command</FullClassName>
+
+		<!-- Unikalny identyfikator wtyczki (GUID) -->
+		<ClientId>fe1e40e9-6894-4b50-8d68-4e1658d96da4</ClientId>
+
+		<!-- Informacje o dostawcy, opcjonalne -->
+		<VendorId>com.typepad.thebuildingcoder</VendorId>
+		<VendorDescription>The Building Coder, http://thebuildingcoder.typepad.com</VendorDescription>
+	</AddIn>
+</RevitAddIns>
