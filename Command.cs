@@ -6,6 +6,8 @@ using Autodesk.Revit.UI.Selection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using NetTopologySuite.Geometries;
+using NetTopologySuite.Triangulate;
 #endregion
 
 namespace sciana2
@@ -94,11 +96,11 @@ namespace sciana2
 
                 // 4. Podział działki na sub-parcele
                 List<(CurveLoop, double)> parcels = null;
-                using (Transaction tx = new Transaction(doc, "Podział działki (korekcja siatki)"))
+                using (Transaction tx = new Transaction(doc, "Podział działki (Voronoi)"))
                 {
                     tx.Start();
 
-                    parcels = CreateSubParcelsWithClippingMulti(mainBoundary);
+                    parcels = CreateSubParcelsVoronoi(mainBoundary);
 
                     TaskDialog.Show("Revit Plugin",
                         $"Utworzono sub-parcel: {parcels.Count}");
@@ -302,6 +304,64 @@ namespace sciana2
                 }
             }
             return null;
+        }
+
+        #endregion
+
+        #region Podział działki (diagram Voronoi)
+
+        private List<(CurveLoop, double)> CreateSubParcelsVoronoi(CurveLoop boundaryLoop)
+        {
+            var result = new List<(CurveLoop, double)>();
+
+            // 1. Konwersja granicy na poligon NTS
+            Polygon originalPolygon = CurveLoopToPolygon(boundaryLoop);
+            if (originalPolygon == null || originalPolygon.IsEmpty)
+                return result;
+
+            double totalArea = originalPolygon.Area;
+            double targetArea = (MIN_PARCEL_AREA + MAX_PARCEL_AREA) / 2.0;
+            int parcelCount = Math.Max(1, (int)Math.Round(totalArea / targetArea));
+
+            Envelope env = originalPolygon.EnvelopeInternal;
+
+            // 2. Generowanie punktów startowych wewnątrz poligonu
+            List<Coordinate> seeds = new List<Coordinate>();
+            while (seeds.Count < parcelCount)
+            {
+                double x = env.MinX + _rnd.NextDouble() * (env.MaxX - env.MinX);
+                double y = env.MinY + _rnd.NextDouble() * (env.MaxY - env.MinY);
+                Coordinate c = new Coordinate(x, y);
+                if (originalPolygon.Contains(new Point(c)))
+                {
+                    seeds.Add(c);
+                }
+            }
+
+            // 3. Budowanie diagramu Voronoi
+            VoronoiDiagramBuilder vdb = new VoronoiDiagramBuilder();
+            vdb.SetSites(seeds);
+            vdb.SetClipEnvelope(env);
+            GeometryCollection diagram = (GeometryCollection)vdb.GetDiagram(new GeometryFactory());
+
+            // 4. Intersekcja komórek z oryginalnym poligonem
+            foreach (Geometry g in diagram.Geometries)
+            {
+                if (g is Polygon cell)
+                {
+                    Geometry clipped = cell.Intersection(originalPolygon);
+                    foreach (var loop in NtsGeometryToCurveLoops(clipped))
+                    {
+                        double area = CalculateArea2D(loop);
+                        if (area > 1e-6)
+                        {
+                            result.Add((loop, area));
+                        }
+                    }
+                }
+            }
+
+            return result;
         }
 
         #endregion
@@ -855,6 +915,56 @@ namespace sciana2
                 area += (p1.X * p2.Y - p2.X * p1.Y);
             }
             return Math.Abs(area) / 2.0;
+        }
+
+        private Polygon CurveLoopToPolygon(CurveLoop loop)
+        {
+            var coords = new List<Coordinate>();
+            foreach (Curve c in loop)
+            {
+                XYZ p = FlattenXYZ(c.GetEndPoint(0));
+                coords.Add(new Coordinate(p.X, p.Y));
+            }
+            if (coords.Count == 0) return null;
+            // ensure closed
+            coords.Add(coords[0]);
+            var ring = new LinearRing(coords.ToArray());
+            return new Polygon(ring);
+        }
+
+        private IEnumerable<CurveLoop> NtsGeometryToCurveLoops(Geometry geom)
+        {
+            List<CurveLoop> loops = new List<CurveLoop>();
+
+            if (geom == null || geom.IsEmpty)
+                return loops;
+
+            if (geom is Polygon poly)
+            {
+                loops.Add(PolygonToCurveLoop(poly));
+            }
+            else if (geom is MultiPolygon mp)
+            {
+                foreach (Polygon p in mp.Geometries)
+                {
+                    loops.Add(PolygonToCurveLoop(p));
+                }
+            }
+
+            return loops;
+        }
+
+        private CurveLoop PolygonToCurveLoop(Polygon poly)
+        {
+            var coords = poly.ExteriorRing.Coordinates;
+            List<Curve> curves = new List<Curve>();
+            for (int i = 0; i < coords.Length - 1; i++)
+            {
+                XYZ p1 = new XYZ(coords[i].X, coords[i].Y, 0);
+                XYZ p2 = new XYZ(coords[i + 1].X, coords[i + 1].Y, 0);
+                curves.Add(CreateFlatLine(p1, p2));
+            }
+            return CurveLoop.Create(curves);
         }
 
         #endregion
