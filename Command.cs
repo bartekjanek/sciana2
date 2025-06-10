@@ -341,7 +341,7 @@ namespace sciana2
             // 3. Budowanie diagramu Voronoi
             VoronoiDiagramBuilder vdb = new VoronoiDiagramBuilder();
             vdb.SetSites(seeds);
-            vdb.SetClipEnvelope(env);
+            vdb.ClipEnvelope = env;
             GeometryCollection diagram = (GeometryCollection)vdb.GetDiagram(new GeometryFactory());
 
             // 4. Intersekcja komórek z oryginalnym poligonem
